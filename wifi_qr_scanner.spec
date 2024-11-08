@@ -6,7 +6,10 @@ block_cipher = None
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
+    binaries=[
+        ('E:\\Python\\Scan2Connect\\.venv\\Lib\\site-packages\\pyzbar\\libiconv.dll', 'pyzbar'),
+        ('E:\\Python\\Scan2Connect\\.venv\\Lib\\site-packages\\pyzbar\\libzbar-64.dll', 'pyzbar')
+    ],
     datas=[],
     hiddenimports=['pywifi', 'PySide6'],
     hookspath=[],

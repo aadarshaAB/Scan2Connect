@@ -1,1 +1,1 @@
-# QuickConnect
+# Scan2Connect

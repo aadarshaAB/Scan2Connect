@@ -6,10 +6,45 @@ import time
 from pywifi import const
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QPushButton, QLabel, QMessageBox, QProgressDialog,
-                               QHBoxLayout, QFrame)
+                               QHBoxLayout, QFrame, QDialogButtonBox)
 from PySide6.QtCore import Qt, QTimer, Slot, QThread, Signal
-from PySide6.QtGui import QImage, QPixmap, QIcon
+from PySide6.QtGui import QImage, QPixmap, QIcon, QClipboard
 from pyzbar.pyzbar import decode
+
+class CustomMessageBox(QMessageBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.clipboard = QApplication.clipboard()
+        
+    def setup_ui(self, ssid, password):
+        self.setIcon(QMessageBox.Question)
+        self.setWindowTitle("Connect to WiFi")
+        self.setText(f"WiFi Details:\nSSID: {ssid}\nPassword: {password}\n\nDo you want to connect to \"{ssid}\"?")
+
+        layout = self.layout()
+
+        self.setStandardButtons(QMessageBox.NoButton)
+
+        button_box = QDialogButtonBox()
+        
+        yes_button = QPushButton("Yes")
+        no_button = QPushButton("No")
+        copy_button = QPushButton("Copy Password")
+        
+        button_box.addButton(yes_button, QDialogButtonBox.YesRole)
+        button_box.addButton(no_button, QDialogButtonBox.NoRole)
+        button_box.addButton(copy_button, QDialogButtonBox.ActionRole)
+
+        yes_button.clicked.connect(lambda: self.done(QMessageBox.Yes))
+        no_button.clicked.connect(lambda: self.done(QMessageBox.No))
+        copy_button.clicked.connect(lambda: self.copy_password(password))
+
+        # Add button box to layout
+        layout.addWidget(button_box, 3, 0, 1, layout.columnCount())
+        
+    def copy_password(self, password):
+        self.clipboard.setText(password)
+        QMessageBox.information(self, "Copied", "Password copied to clipboard!")
 
 class WifiConnector(QThread):
     status_updated = Signal(str)
@@ -57,8 +92,10 @@ class WifiConnector(QThread):
 class WifiQRScanner(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("WiFi QR Scanner")
+        self.setWindowTitle("Scan2Connect")
         self.setMinimumSize(800, 600)
+        icon = QIcon("app_icon.ico")
+        self.setWindowIcon(icon)
 
         self.camera = None
         self.capture_timer = None
@@ -81,7 +118,7 @@ class WifiQRScanner(QMainWindow):
         camera_layout.addWidget(self.camera_label)
     
         button_layout = QHBoxLayout()
-        self.scan_button = QPushButton("Start Camera")
+        self.scan_button = QPushButton("Start Scanning")
         self.scan_button.clicked.connect(self.toggle_scanning)
         button_layout.addWidget(self.scan_button)
 
@@ -97,6 +134,11 @@ class WifiQRScanner(QMainWindow):
         status_layout.addWidget(self.status_label)
 
         self.layout.addWidget(status_frame)
+
+        watermark_label = QLabel("© 2024 Aadarsha | https://github.com/aadarshaAB")
+        watermark_label.setAlignment(Qt.AlignCenter)
+        watermark_label.setStyleSheet("color: #999; padding: 5px;")
+        self.layout.addWidget(watermark_label)
 
     def toggle_scanning(self):
         if not self.is_scanning:
@@ -165,6 +207,11 @@ class WifiQRScanner(QMainWindow):
             QMessageBox.critical(self, "Error", message)
             self.status_label.setText("Connection failed") 
 
+    def show_wifi_details_dialog(self, ssid, password):
+        dialog = CustomMessageBox(self)
+        dialog.setup_ui(ssid, password)
+        return dialog.exec_()
+
     @Slot()
     def update_frame(self):
         ret, frame = self.camera.read()
@@ -183,11 +230,7 @@ class WifiQRScanner(QMainWindow):
                              rect_points.top + rect_points.height),
                             (0, 255, 0), 2
                         )
-                        reply = QMessageBox.question(
-                            self, "Connect to WiFi",
-                            f'Do you want to connect to "{ssid}"?',
-                            QMessageBox.Yes | QMessageBox.No
-                        )
+                        reply = self.show_wifi_details_dialog(ssid, password)
                         if reply == QMessageBox.Yes:
                             self.connect_to_wifi(ssid, password)
 
@@ -207,7 +250,8 @@ class WifiQRScanner(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-
+    app_icon = QIcon("app_icon.ico")
+    app.setWindowIcon(app_icon)
     app.setStyleSheet("""
         QMainWindow {
             background-color: #f0f0f0;

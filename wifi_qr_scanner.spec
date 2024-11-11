@@ -31,7 +31,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='WiFi QR Scanner',
+    name='Scan2Connect',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

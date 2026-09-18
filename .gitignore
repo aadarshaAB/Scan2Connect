@@ -1,0 +1,27 @@
+# Build & dist
+build/
+dist/
+*.exe
+*.egg-info/
+
+# Environment
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# IDE & local
+.claude/
+.pytest_cache/
+.ruff_cache/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

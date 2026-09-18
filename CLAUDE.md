@@ -71,7 +71,7 @@ fix(ui): pause scanning while dialogs are open and debounce repeat QR codes
 ## Commands
 
 ```bash
-python main.py            # run (until E-03 lands; then: python -m scan2connect)
+python -m scan2connect    # run
 pip install -e .[dev]     # install runtime + dev deps (ruff, pytest, pyinstaller)
 ruff check .              # lint
 ruff format .             # format
@@ -80,12 +80,15 @@ pyinstaller wifi_qr_scanner.spec   # build exe (until E-16; then packaging/scan2
 ```
 Keep this block current — update it in the same commit as the task that changes a command.
 
-## Current architecture (pre-plan; update as tasks land)
+## Current architecture (update as tasks land)
 
-Everything is in `main.py`:
-- `WifiQRScanner(QMainWindow)` — camera preview via `cv2.VideoCapture(0)` + 30 ms `QTimer`, QR detection with `pyzbar`, `parse_wifi_qr` regex, orchestrates the connect flow.
-- `WifiConnector(QThread)` — `pywifi` connection off the GUI thread; signals `status_updated(str)`, `connection_completed(bool, str)`.
-- `CustomMessageBox(QMessageBox)` — SSID/password confirmation with Yes / No / Copy Password.
+Split into the `scan2connect` package (E-03), 1:1 moves from the original `main.py`, no behaviour change:
+- `scan2connect/__main__.py` — `QApplication`, applies `ui/theme.py` stylesheet, creates/shows `WifiQRScanner`.
+- `ui/main_window.py` — `WifiQRScanner(QMainWindow)` — camera preview via `cv2.VideoCapture(0)` + 30 ms `QTimer`, QR detection with `pyzbar`, orchestrates the connect flow.
+- `ui/dialogs.py` — `CustomMessageBox(QMessageBox)` — SSID/password confirmation with Yes / No / Copy Password.
+- `ui/theme.py` — `STYLESHEET` string applied to the `QApplication`.
+- `qr/parser.py` — `parse_wifi_qr(data)` regex parser (module-level function, not a method).
+- `wifi/connector.py` — `WifiConnector(QThread)` — `pywifi` connection off the GUI thread; signals `status_updated(str)`, `connection_completed(bool, str)`.
 
 Known pre-plan hazards (all addressed by specific tasks): pywifi hardcodes WPA2 and **deletes all saved WiFi profiles**; pyzbar needs native DLLs + VC++ 2013 runtime on target PCs; `interfaces()[0]` and `VideoCapture(0)` are hardcoded; the scan timer keeps firing while the confirm dialog is open; the icon is loaded by a CWD-relative path.
 
@@ -99,14 +102,14 @@ Known pre-plan hazards (all addressed by specific tasks): pywifi hardcodes WPA2 
 
 Single source of truth for progress. Update on every task completion and at the end of every session.
 
-**Current focus:** E-03 (not started)
-**Next up:** E-04
+**Current focus:** E-04 (not started)
+**Next up:** E-05
 
 | Task | Status | Commit | Notes |
 |---|---|---|---|
 | E-01 chore .gitignore + untrack build | done | 06b2b32 | also untracked build/dist (15 files) |
 | E-02 build pyproject + deps | done | 16b99fa | pip 21.2.3 in .venv couldn't do editable installs; upgraded pip/setuptools first. PySide6 6.4.1→6.11.2. Fixed pre-existing ruff findings in main.py (import order, trailing whitespace, unused import, one long f-string) since "ruff check . passes" is this task's own done-when bar. |
-| E-03 refactor split package | todo | | |
+| E-03 refactor split package | done | | `main.py` deleted; split 1:1 into `scan2connect/{__main__,qr/parser,wifi/connector,ui/{main_window,dialogs,theme}}.py`. `parse_wifi_qr` became a module-level function instead of a `WifiQRScanner` method (as the task specified). Icon still loaded via CWD-relative `"app_icon.ico"` — untouched, fixed in E-04. pyproject.toml switched from `py-modules=["main"]` to package discovery. |
 | E-04 fix resource_path icon | todo | | |
 | E-05 feat WIFI: parser + tests | todo | | |
 | E-06 feat OpenCV QR, drop pyzbar | todo | | |
@@ -139,3 +142,4 @@ Status values: `todo` · `in-progress` · `done` · `blocked (reason)` · `skipp
 - **2026-09-18** — Codebase analysed; `CLAUDE.md`, `CODEBASE_GUIDE.md`, `enhancement_plan.md` written. Decisions locked: ctypes WLAN API, OpenCV QR detector, onedir + Inno Setup. No code changed yet.
 - **2026-09-18** — E-01 done: `.gitignore` added (incl. `.claude/`), `build/`/`dist/` untracked (06b2b32). Docs bootstrap committed (64ca661). Starting E-02.
 - **2026-09-18** — E-02 done: `pyproject.toml` added, `requirements.txt` removed, PySide6/OpenCV upgraded, verified `pip install -e .[dev]` + `python main.py` + `ruff check .` in the project's `.venv`. Starting E-03 next session.
+- **2026-09-18** — E-03 done: `main.py` split 1:1 into the `scan2connect` package (no behaviour change), verified `python -m scan2connect` runs and `ruff check .` passes. Starting E-04 next session.

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 from pyzbar.pyzbar import decode
 
 from scan2connect.qr.parser import parse_wifi_qr
+from scan2connect.resources import resource_path
 from scan2connect.ui.dialogs import CustomMessageBox
 from scan2connect.wifi.connector import WifiConnector
 
@@ -24,7 +25,7 @@ class WifiQRScanner(QMainWindow):
         super().__init__()
         self.setWindowTitle("Scan2Connect")
         self.setMinimumSize(800, 600)
-        icon = QIcon("app_icon.ico")
+        icon = QIcon(resource_path("assets/app_icon.ico"))
         self.setWindowIcon(icon)
 
         self.camera = None

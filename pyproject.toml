@@ -26,6 +26,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["scan2connect*"]
 
+[tool.setuptools.package-data]
+scan2connect = ["assets/*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

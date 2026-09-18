@@ -98,12 +98,12 @@ Known pre-plan hazards (all addressed by specific tasks): pywifi hardcodes WPA2 
 
 Single source of truth for progress. Update on every task completion and at the end of every session.
 
-**Current focus:** E-01 (not started)
-**Next up:** E-02
+**Current focus:** E-02 (not started)
+**Next up:** E-03
 
 | Task | Status | Commit | Notes |
 |---|---|---|---|
-| E-01 chore .gitignore + untrack build | todo | | |
+| E-01 chore .gitignore + untrack build | done | 06b2b32 | also untracked build/dist (15 files) |
 | E-02 build pyproject + deps | todo | | |
 | E-03 refactor split package | todo | | |
 | E-04 fix resource_path icon | todo | | |
@@ -136,3 +136,4 @@ Status values: `todo` · `in-progress` · `done` · `blocked (reason)` · `skipp
 
 ### Session history
 - **2026-09-18** — Codebase analysed; `CLAUDE.md`, `CODEBASE_GUIDE.md`, `enhancement_plan.md` written. Decisions locked: ctypes WLAN API, OpenCV QR detector, onedir + Inno Setup. No code changed yet.
+- **2026-09-18** — E-01 done: `.gitignore` added (incl. `.claude/`), `build/`/`dist/` untracked (06b2b32). Docs bootstrap committed (64ca661). Starting E-02.

@@ -105,7 +105,7 @@ Single source of truth for progress. Update on every task completion and at the 
 | Task | Status | Commit | Notes |
 |---|---|---|---|
 | E-01 chore .gitignore + untrack build | done | 06b2b32 | also untracked build/dist (15 files) |
-| E-02 build pyproject + deps | done | | pip 21.2.3 in .venv couldn't do editable installs; upgraded pip/setuptools first. PySide6 6.4.1→6.11.2. Fixed pre-existing ruff findings in main.py (import order, trailing whitespace, unused import, one long f-string) since "ruff check . passes" is this task's own done-when bar. |
+| E-02 build pyproject + deps | done | 16b99fa | pip 21.2.3 in .venv couldn't do editable installs; upgraded pip/setuptools first. PySide6 6.4.1→6.11.2. Fixed pre-existing ruff findings in main.py (import order, trailing whitespace, unused import, one long f-string) since "ruff check . passes" is this task's own done-when bar. |
 | E-03 refactor split package | todo | | |
 | E-04 fix resource_path icon | todo | | |
 | E-05 feat WIFI: parser + tests | todo | | |

@@ -106,7 +106,7 @@ class WifiQRScanner(QMainWindow):
         self.camera_label.clear()
         self.status_label.setText("Scan WiFi QR code to connect")
 
-    def connect_to_wifi(self, ssid, password):
+    def connect_to_wifi(self, creds):
         progress = QProgressDialog("Connecting to WiFi...", "Cancel", 0, 0, self)
         progress.setWindowTitle("Connecting")
         progress.setWindowModality(Qt.WindowModal)
@@ -114,7 +114,7 @@ class WifiQRScanner(QMainWindow):
         progress.setAutoClose(True)
         progress.setMinimumDuration(0)
 
-        self.connector = WifiConnector(ssid, password)
+        self.connector = WifiConnector(creds.ssid, creds.password or "")
         self.connector.status_updated.connect(progress.setLabelText)
         self.connector.connection_completed.connect(self.handle_connection_result)
         self.connector.connection_completed.connect(progress.close)
@@ -128,9 +128,9 @@ class WifiQRScanner(QMainWindow):
             QMessageBox.critical(self, "Error", message)
             self.status_label.setText("Connection failed")
 
-    def show_wifi_details_dialog(self, ssid, password):
+    def show_wifi_details_dialog(self, creds):
         dialog = CustomMessageBox(self)
-        dialog.setup_ui(ssid, password)
+        dialog.setup_ui(creds.ssid, creds.password or "")
         return dialog.exec_()
 
     @Slot()
@@ -142,8 +142,8 @@ class WifiQRScanner(QMainWindow):
             for obj in decoded_objects:
                 data = obj.data.decode("utf-8")
                 if data.startswith("WIFI:"):
-                    ssid, password = parse_wifi_qr(data)
-                    if ssid and password:
+                    creds = parse_wifi_qr(data)
+                    if creds:
                         rect_points = obj.rect
                         cv2.rectangle(
                             frame, (rect_points.left, rect_points.top),
@@ -151,9 +151,9 @@ class WifiQRScanner(QMainWindow):
                              rect_points.top + rect_points.height),
                             (0, 255, 0), 2
                         )
-                        reply = self.show_wifi_details_dialog(ssid, password)
+                        reply = self.show_wifi_details_dialog(creds)
                         if reply == QMessageBox.Yes:
-                            self.connect_to_wifi(ssid, password)
+                            self.connect_to_wifi(creds)
 
             rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             h, w, ch = rgb_image.shape

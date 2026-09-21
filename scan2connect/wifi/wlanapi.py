@@ -102,6 +102,16 @@ wlan_connection_mode_temporary_profile = 1
 # dot11_bss_type
 dot11_BSS_type_infrastructure = 1
 
+# WLAN_INTERFACE_STATE (from WLAN_INTERFACE_INFO.isState)
+WLAN_INTERFACE_STATE_NOT_READY = 0
+WLAN_INTERFACE_STATE_CONNECTED = 1
+WLAN_INTERFACE_STATE_AD_HOC_NETWORK_FORMED = 2
+WLAN_INTERFACE_STATE_DISCONNECTING = 3
+WLAN_INTERFACE_STATE_DISCONNECTED = 4
+WLAN_INTERFACE_STATE_ASSOCIATING = 5
+WLAN_INTERFACE_STATE_DISCOVERING = 6
+WLAN_INTERFACE_STATE_AUTHENTICATING = 7
+
 wlanapi.WlanOpenHandle.argtypes = [DWORD, c_void_p, POINTER(DWORD), POINTER(HANDLE)]
 wlanapi.WlanOpenHandle.restype = DWORD
 
@@ -393,6 +403,15 @@ def current_connection(interface_guid):
         if attributes is None:
             return None
         return attributes.wlanAssociationAttributes_dot11Ssid.ssid
+
+
+def interface_state(wlan_handle, interface_guid):
+    """Return the WLAN_INTERFACE_STATE (see WLAN_INTERFACE_STATE_* constants)
+    for `interface_guid`, or None if the interface is no longer enumerated."""
+    for interface in enum_interfaces(wlan_handle):
+        if str(interface["guid"]) == str(interface_guid):
+            return interface["state"]
+    return None
 
 
 if __name__ == "__main__":

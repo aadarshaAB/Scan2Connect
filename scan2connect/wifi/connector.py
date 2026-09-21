@@ -13,19 +13,24 @@ class WifiConnector(QThread):
     status_updated = Signal(str)
     connection_completed = Signal(bool, str)
 
-    def __init__(self, credentials):
+    def __init__(self, credentials, interface_guid=None):
         super().__init__()
         self.credentials = credentials
         self.ssid = credentials.ssid
+        self.interface_guid = interface_guid
 
     def run(self):
         try:
             with wlanapi.WlanHandle() as handle:
-                interfaces = wlanapi.enum_interfaces(handle)
-                if not interfaces:
-                    self.connection_completed.emit(False, "No WiFi adapter found")
-                    return
-                interface_guid = interfaces[0]["guid"]
+                interface_guid = self.interface_guid
+                if interface_guid is None:
+                    interfaces = wlanapi.enum_interfaces(handle)
+                    if not interfaces:
+                        self.connection_completed.emit(
+                            False, "No WiFi adapter found or WiFi is off"
+                        )
+                        return
+                    interface_guid = interfaces[0]["guid"]
 
                 profile_xml = build_profile_xml(self.credentials)
 

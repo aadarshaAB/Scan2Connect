@@ -10,6 +10,8 @@ from scan2connect.ui.theme import STYLESHEET
 
 def main():
     app = QApplication(sys.argv)
+    app.setOrganizationName("Scan2Connect")
+    app.setApplicationName("Scan2Connect")
     app_icon = QIcon(resource_path("assets/app_icon.ico"))
     app.setWindowIcon(app_icon)
     app.setStyleSheet(STYLESHEET)

@@ -13,9 +13,9 @@ class _FakeWlanHandle:
         return False
 
 
-def _run_connector(credentials, **wlanapi_overrides):
+def _run_connector(credentials, interface_guid=None, **wlanapi_overrides):
     """Run WifiConnector.run() synchronously against a mocked wlanapi module."""
-    connector = WifiConnector(credentials)
+    connector = WifiConnector(credentials, interface_guid)
 
     status_updates = []
     results = []
@@ -72,7 +72,23 @@ class TestNoAdapter:
         creds = WifiCredentials(ssid="MyNetwork", password="pw", security="WPA2")
         status_updates, results = _run_connector(creds, enum_interfaces=MagicMock(return_value=[]))
 
-        assert results == [(False, "No WiFi adapter found")]
+        assert results == [(False, "No WiFi adapter found or WiFi is off")]
+
+
+class TestExplicitAdapter:
+    def test_explicit_guid_skips_enumeration(self):
+        creds = WifiCredentials(ssid="MyNetwork", password="pw", security="WPA2")
+        enum_interfaces_mock = MagicMock()
+        connect_mock = MagicMock()
+        _run_connector(
+            creds,
+            interface_guid="chosen-guid",
+            enum_interfaces=enum_interfaces_mock,
+            connect=connect_mock,
+        )
+
+        enum_interfaces_mock.assert_not_called()
+        assert connect_mock.call_args.args[1] == "chosen-guid"
 
 
 class TestTimeout:

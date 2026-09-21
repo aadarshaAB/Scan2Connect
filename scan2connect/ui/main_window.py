@@ -1,9 +1,10 @@
 import cv2
-from PySide6.QtCore import Qt, QTimer, Slot
+from PySide6.QtCore import QSettings, Qt, QTimer, Slot
 from PySide6.QtGui import QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -17,7 +18,10 @@ from scan2connect.camera.worker import detect_qr_codes
 from scan2connect.qr.parser import parse_wifi_qr
 from scan2connect.resources import resource_path
 from scan2connect.ui.dialogs import CustomMessageBox
+from scan2connect.wifi import wlanapi
 from scan2connect.wifi.connector import WifiConnector
+
+SETTINGS_ADAPTER_GUID_KEY = "wifi/adapter_guid"
 
 
 class WifiQRScanner(QMainWindow):
@@ -107,6 +111,20 @@ class WifiQRScanner(QMainWindow):
         self.status_label.setText("Scan WiFi QR code to connect")
 
     def connect_to_wifi(self, creds):
+        try:
+            interfaces = wlanapi.list_interfaces()
+        except wlanapi.WlanApiError as exp:
+            QMessageBox.critical(self, "Error", f"Could not query WiFi adapters: {exp}")
+            return
+
+        if not interfaces:
+            QMessageBox.critical(self, "Error", "No WiFi adapter found or WiFi is off")
+            return
+
+        interface_guid = self.resolve_adapter(interfaces)
+        if interface_guid is None:
+            return
+
         progress = QProgressDialog("Connecting to WiFi...", "Cancel", 0, 0, self)
         progress.setWindowTitle("Connecting")
         progress.setWindowModality(Qt.WindowModal)
@@ -114,11 +132,32 @@ class WifiQRScanner(QMainWindow):
         progress.setAutoClose(True)
         progress.setMinimumDuration(0)
 
-        self.connector = WifiConnector(creds)
+        self.connector = WifiConnector(creds, interface_guid)
         self.connector.status_updated.connect(progress.setLabelText)
         self.connector.connection_completed.connect(self.handle_connection_result)
         self.connector.connection_completed.connect(progress.close)
         self.connector.start()
+
+    def resolve_adapter(self, interfaces):
+        """Return the interface GUID to connect through, prompting if there are several."""
+        if len(interfaces) == 1:
+            return interfaces[0]["guid"]
+
+        settings = QSettings()
+        remembered_guid = settings.value(SETTINGS_ADAPTER_GUID_KEY)
+        if remembered_guid in {iface["guid"] for iface in interfaces}:
+            return remembered_guid
+
+        descriptions = [iface["description"] for iface in interfaces]
+        choice, ok = QInputDialog.getItem(
+            self, "Select WiFi Adapter", "Multiple adapters found:", descriptions, 0, False
+        )
+        if not ok:
+            return None
+
+        chosen = interfaces[descriptions.index(choice)]
+        settings.setValue(SETTINGS_ADAPTER_GUID_KEY, chosen["guid"])
+        return chosen["guid"]
 
     def handle_connection_result(self, success, message):
         if success:

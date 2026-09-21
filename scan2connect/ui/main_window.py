@@ -12,8 +12,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from pyzbar.pyzbar import decode
 
+from scan2connect.camera.worker import detect_qr_codes
 from scan2connect.qr.parser import parse_wifi_qr
 from scan2connect.resources import resource_path
 from scan2connect.ui.dialogs import CustomMessageBox
@@ -137,19 +137,12 @@ class WifiQRScanner(QMainWindow):
     def update_frame(self):
         ret, frame = self.camera.read()
         if ret:
-            decoded_objects = decode(frame)
-
-            for obj in decoded_objects:
-                data = obj.data.decode("utf-8")
+            for data, corners in detect_qr_codes(frame):
                 if data.startswith("WIFI:"):
                     creds = parse_wifi_qr(data)
                     if creds:
-                        rect_points = obj.rect
-                        cv2.rectangle(
-                            frame, (rect_points.left, rect_points.top),
-                            (rect_points.left + rect_points.width,
-                             rect_points.top + rect_points.height),
-                            (0, 255, 0), 2
+                        cv2.polylines(
+                            frame, [corners.astype(int)], True, (0, 255, 0), 2
                         )
                         reply = self.show_wifi_details_dialog(creds)
                         if reply == QMessageBox.Yes:

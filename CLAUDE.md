@@ -60,6 +60,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 - Always include `Refs: E-NN` for plan tasks (or `B-NN` for backlog). Use `Fixes #123` for GitHub issues.
 - One task per commit; never mix a `feat` with an unrelated `fix`.
 - Session-Log-only updates use `docs: update session log`.
+- Don't auto run script to test. Tell me manually perform test after each phase / feature is completed.
 
 Examples:
 ```
@@ -85,13 +86,14 @@ Keep this block current — update it in the same commit as the task that change
 Split into the `scan2connect` package (E-03), 1:1 moves from the original `main.py`, no behaviour change:
 - `scan2connect/__main__.py` — `QApplication`, applies `ui/theme.py` stylesheet, creates/shows `WifiQRScanner`.
 - `resources.py` — `resource_path(rel)`: resolves against `sys._MEIPASS` when frozen (PyInstaller), else the package directory. Used for `assets/app_icon.ico`.
-- `ui/main_window.py` — `WifiQRScanner(QMainWindow)` — camera preview via `cv2.VideoCapture(0)` + 30 ms `QTimer`, QR detection with `pyzbar`, orchestrates the connect flow.
+- `ui/main_window.py` — `WifiQRScanner(QMainWindow)` — camera preview via `cv2.VideoCapture(0)` + 30 ms `QTimer`, QR detection via `camera/worker.py`, orchestrates the connect flow.
 - `ui/dialogs.py` — `CustomMessageBox(QMessageBox)` — SSID/password confirmation with Yes / No / Copy Password.
 - `ui/theme.py` — `STYLESHEET` string applied to the `QApplication`.
 - `qr/parser.py` — `parse_wifi_qr(data)` regex parser (module-level function, not a method).
+- `camera/worker.py` — `detect_qr_codes(frame)`: `cv2.QRCodeDetectorAruco().detectAndDecodeMulti(frame)` wrapper, returns `list[(payload, corners)]`.
 - `wifi/connector.py` — `WifiConnector(QThread)` — `pywifi` connection off the GUI thread; signals `status_updated(str)`, `connection_completed(bool, str)`.
 
-Known pre-plan hazards (all addressed by specific tasks): pywifi hardcodes WPA2 and **deletes all saved WiFi profiles**; pyzbar needs native DLLs + VC++ 2013 runtime on target PCs; `interfaces()[0]` and `VideoCapture(0)` are hardcoded; the scan timer keeps firing while the confirm dialog is open; the icon is loaded by a CWD-relative path.
+Known pre-plan hazards (all addressed by specific tasks): pywifi hardcodes WPA2 and **deletes all saved WiFi profiles**; `interfaces()[0]` and `VideoCapture(0)` are hardcoded; the scan timer keeps firing while the confirm dialog is open; the icon is loaded by a CWD-relative path.
 
 ## Platform notes
 
@@ -103,8 +105,8 @@ Known pre-plan hazards (all addressed by specific tasks): pywifi hardcodes WPA2 
 
 Single source of truth for progress. Update on every task completion and at the end of every session.
 
-**Current focus:** E-06 (not started) — Phase 1 (Windows 11 runs) started
-**Next up:** E-06
+**Current focus:** E-07 (not started) — Phase 1 (Windows 11 runs) in progress
+**Next up:** E-07
 
 | Task | Status | Commit | Notes |
 |---|---|---|---|
@@ -113,7 +115,7 @@ Single source of truth for progress. Update on every task completion and at the 
 | E-03 refactor split package | done | 9f41e8d | `main.py` deleted; split 1:1 into `scan2connect/{__main__,qr/parser,wifi/connector,ui/{main_window,dialogs,theme}}.py`. `parse_wifi_qr` became a module-level function instead of a `WifiQRScanner` method (as the task specified). Icon still loaded via CWD-relative `"app_icon.ico"` — untouched, fixed in E-04. pyproject.toml switched from `py-modules=["main"]` to package discovery. |
 | E-04 fix resource_path icon | done | 6e4e486 | `app_icon.ico` moved to `scan2connect/assets/`; added `resources.py::resource_path()`; wired into `ui/main_window.py` and `__main__.py`. Added `[tool.setuptools.package-data]` so the asset ships in non-editable installs too. Verified via `os.chdir()` to an unrelated directory before resolving the path (and a full app launch from there) — icon path resolves correctly regardless of CWD. |
 | E-05 feat WIFI: parser + tests | done | 4e2a041 | `WifiCredentials` dataclass (ssid, password, security, hidden); full parser supports T/S/P/H fields, any order, escapes `\;` `\,` `\:` `\\`, quotes; 36 tests (basic, escapes, quotes, real-world, edge cases); `main_window.py` updated to use new return type. |
-| E-06 feat OpenCV QR, drop pyzbar | todo | | |
+| E-06 feat OpenCV QR, drop pyzbar | done | (pending) | New `camera/worker.py::detect_qr_codes(frame)` wraps `cv2.QRCodeDetectorAruco().detectAndDecodeMulti()`, returns `list[(payload, corners)]`. `main_window.py` updated: `pyzbar` import/`decode()` replaced, rectangle draw replaced with `cv2.polylines` using detector corner points. Removed `pyzbar` from `pyproject.toml` deps and the DLL `binaries=[...]` entries from `wifi_qr_scanner.spec`. Verified with `pyzbar` uninstalled: app modules import cleanly, `ruff check .` and `pytest` (36 tests) pass. Manual webcam scan test still pending (user to run). |
 | E-07 feat wlanapi bindings | todo | | |
 | E-08 feat profile XML + tests | todo | | |
 | E-09 feat connector on WLAN API, drop pywifi | todo | | verify on non-admin account |
@@ -146,3 +148,4 @@ Status values: `todo` · `in-progress` · `done` · `blocked (reason)` · `skipp
 - **2026-09-18** — E-03 done: `main.py` split 1:1 into the `scan2connect` package (no behaviour change), verified `python -m scan2connect` runs and `ruff check .` passes. Starting E-04 next session.
 - **2026-09-18** — E-04 done: icon resolved via `resource_path()` instead of a CWD-relative string; Phase 0 (Hygiene) complete. Starting E-05 (Phase 1) next session.
 - **2026-09-20** — E-05 done: `WifiCredentials` dataclass, full WIFI: parser (T/S/P/H, escapes, quotes, any field order), 36 comprehensive tests. Updated `main_window.py` to use new return type. All tests + linting pass. Starting E-06 next session.
+- **2026-09-21** — E-06 done: added `camera/worker.py::detect_qr_codes()` using `cv2.QRCodeDetectorAruco()`, removed `pyzbar` from `main_window.py`, `pyproject.toml`, and `wifi_qr_scanner.spec` (dropped its DLL `binaries=[...]` entries). Verified with `pyzbar` uninstalled from the venv: imports clean, `ruff check .` and `pytest` (36 tests) pass. Per updated CLAUDE.md rule, did not auto-run the app — user to manually verify webcam QR scanning still works before this task is considered fully done. Starting E-07 next session.

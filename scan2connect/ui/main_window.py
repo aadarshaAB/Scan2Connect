@@ -114,7 +114,7 @@ class WifiQRScanner(QMainWindow):
         progress.setAutoClose(True)
         progress.setMinimumDuration(0)
 
-        self.connector = WifiConnector(creds.ssid, creds.password or "")
+        self.connector = WifiConnector(creds)
         self.connector.status_updated.connect(progress.setLabelText)
         self.connector.connection_completed.connect(self.handle_connection_result)
         self.connector.connection_completed.connect(progress.close)

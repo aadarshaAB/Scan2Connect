@@ -295,9 +295,13 @@ def get_profile_xml(wlan_handle, interface_guid, profile_name):
         wlanapi.WlanFreeMemory(xml_ptr)
 
 
+WLAN_PROFILE_GROUP_POLICY = 0x00000001
+WLAN_PROFILE_USER = 0x00000002
+
+
 def set_profile(wlan_handle, interface_guid, profile_xml, all_user=True):
     """Add or update a profile from its XML representation."""
-    flags = 0 if all_user else 1  # WLAN_PROFILE_USER (per-user, not all-user)
+    flags = 0 if all_user else WLAN_PROFILE_USER
     reason_code = DWORD()
     _check(
         "WlanSetProfile",

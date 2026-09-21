@@ -26,6 +26,8 @@ Reference docs:
 5. Update the Session Log row to `done` with the short commit hash, and update any section of this file the task made stale (commands, architecture, dependencies).
 6. Commit the code **and** this file together, using the commit message from the task entry.
 7. Don't start the next task in the same commit.
+8. I have created a own cutom / commit command so dont commit just remind me to commit from now one.
+9. Commit message should be short precise and direct.
 
 ## Commit message convention (Conventional Commits)
 
@@ -91,7 +93,8 @@ Split into the `scan2connect` package (E-03), 1:1 moves from the original `main.
 - `ui/theme.py` — `STYLESHEET` string applied to the `QApplication`.
 - `qr/parser.py` — `parse_wifi_qr(data)` regex parser (module-level function, not a method).
 - `camera/worker.py` — `detect_qr_codes(frame)`: `cv2.QRCodeDetectorAruco().detectAndDecodeMulti(frame)` wrapper, returns `list[(payload, corners)]`.
-- `wifi/connector.py` — `WifiConnector(QThread)` — `pywifi` connection off the GUI thread; signals `status_updated(str)`, `connection_completed(bool, str)`.
+- `wifi/connector.py` — `WifiConnector(QThread)` — `pywifi` connection off the GUI thread; signals `status_updated(str)`, `connection_completed(bool, str)`. Still pywifi-based; not yet wired to `wifi/wlanapi.py` (E-09).
+- `wifi/wlanapi.py` — ctypes bindings for `wlanapi.dll` (WlanOpenHandle/CloseHandle, EnumInterfaces, QueryInterface, Get/Set/DeleteProfile, Connect, Disconnect, RegisterNotification, FreeMemory). `WlanHandle` context manager; `list_interfaces()` / `current_connection(guid)` helpers. Standalone foundation, not wired into the app yet.
 
 Known pre-plan hazards (all addressed by specific tasks): pywifi hardcodes WPA2 and **deletes all saved WiFi profiles**; `interfaces()[0]` and `VideoCapture(0)` are hardcoded; the scan timer keeps firing while the confirm dialog is open; the icon is loaded by a CWD-relative path.
 
@@ -105,8 +108,8 @@ Known pre-plan hazards (all addressed by specific tasks): pywifi hardcodes WPA2 
 
 Single source of truth for progress. Update on every task completion and at the end of every session.
 
-**Current focus:** E-07 (not started) — Phase 1 (Windows 11 runs) in progress
-**Next up:** E-07
+**Current focus:** E-08 (not started) — Phase 1 (Windows 11 runs) in progress
+**Next up:** E-08
 
 | Task | Status | Commit | Notes |
 |---|---|---|---|
@@ -116,7 +119,7 @@ Single source of truth for progress. Update on every task completion and at the 
 | E-04 fix resource_path icon | done | 6e4e486 | `app_icon.ico` moved to `scan2connect/assets/`; added `resources.py::resource_path()`; wired into `ui/main_window.py` and `__main__.py`. Added `[tool.setuptools.package-data]` so the asset ships in non-editable installs too. Verified via `os.chdir()` to an unrelated directory before resolving the path (and a full app launch from there) — icon path resolves correctly regardless of CWD. |
 | E-05 feat WIFI: parser + tests | done | 4e2a041 | `WifiCredentials` dataclass (ssid, password, security, hidden); full parser supports T/S/P/H fields, any order, escapes `\;` `\,` `\:` `\\`, quotes; 36 tests (basic, escapes, quotes, real-world, edge cases); `main_window.py` updated to use new return type. |
 | E-06 feat OpenCV QR, drop pyzbar | done | 70e90fd | New `camera/worker.py::detect_qr_codes(frame)` wraps `cv2.QRCodeDetectorAruco().detectAndDecodeMulti()`, returns `list[(payload, corners)]`. `main_window.py` updated: `pyzbar` import/`decode()` replaced, rectangle draw replaced with `cv2.polylines` using detector corner points. Removed `pyzbar` from `pyproject.toml` deps and the DLL `binaries=[...]` entries from `wifi_qr_scanner.spec`. Verified with `pyzbar` uninstalled: app modules import cleanly, `ruff check .` and `pytest` (36 tests) pass. Manual webcam scan test still pending (user to run). |
-| E-07 feat wlanapi bindings | todo | | |
+| E-07 feat wlanapi bindings | done | (pending) | New `wifi/wlanapi.py`: ctypes structs/bindings for WlanOpenHandle/CloseHandle, EnumInterfaces, QueryInterface (current-connection opcode), Get/Set/DeleteProfile, Connect, Disconnect, RegisterNotification, FreeMemory. `WlanHandle` context manager; `list_interfaces()`/`current_connection(guid)` helpers. Not wired into the app (that's E-09). Hit and fixed two ctypes dangling-buffer bugs during verification: `enum_interfaces()` and `query_current_connection()` both returned `Structure` field views into buffers freed by the following `WlanFreeMemory` call, corrupting the GUID/SSID once read by the caller — fixed with `from_buffer_copy()`. Verified `list_interfaces()` output GUID/SSID against `netsh wlan show interfaces` — exact match, stable across repeated runs. `ruff check .` and `pytest` (36 tests) pass. |
 | E-08 feat profile XML + tests | todo | | |
 | E-09 feat connector on WLAN API, drop pywifi | todo | | verify on non-admin account |
 | E-10 feat adapter handling | todo | | |
@@ -149,3 +152,4 @@ Status values: `todo` · `in-progress` · `done` · `blocked (reason)` · `skipp
 - **2026-09-18** — E-04 done: icon resolved via `resource_path()` instead of a CWD-relative string; Phase 0 (Hygiene) complete. Starting E-05 (Phase 1) next session.
 - **2026-09-20** — E-05 done: `WifiCredentials` dataclass, full WIFI: parser (T/S/P/H, escapes, quotes, any field order), 36 comprehensive tests. Updated `main_window.py` to use new return type. All tests + linting pass. Starting E-06 next session.
 - **2026-09-21** — E-06 done: added `camera/worker.py::detect_qr_codes()` using `cv2.QRCodeDetectorAruco()`, removed `pyzbar` from `main_window.py`, `pyproject.toml`, and `wifi_qr_scanner.spec` (dropped its DLL `binaries=[...]` entries). Verified with `pyzbar` uninstalled from the venv: imports clean, `ruff check .` and `pytest` (36 tests) pass. Per updated CLAUDE.md rule, did not auto-run the app — user to manually verify webcam QR scanning still works before this task is considered fully done. Starting E-07 next session.
+- **2026-09-21** — E-07 done: added `wifi/wlanapi.py`, ctypes bindings for `wlanapi.dll` (open/close handle, enum interfaces, query current connection, get/set/delete profile, connect, disconnect, register notification, free memory) plus `WlanHandle` context manager and `list_interfaces()`/`current_connection()` helpers. Not wired into the app yet. Found and fixed two ctypes dangling-buffer bugs while verifying the done-when command (GUID/SSID read after `WlanFreeMemory` freed the backing buffer) — fixed with `from_buffer_copy()`; output now matches `netsh wlan show interfaces` exactly and is stable across runs. `ruff check .` and `pytest` pass. User now uses their own `/commit` command going forward — Claude implements/verifies and updates this log, but does not run `git commit`.

@@ -1,4 +1,5 @@
 import logging
+import time
 
 from PySide6.QtCore import QSettings, Qt, QUrl, Slot
 from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
@@ -27,6 +28,7 @@ from scan2connect.wifi.connector import WifiConnector
 log = logging.getLogger(__name__)
 
 SETTINGS_ADAPTER_GUID_KEY = "wifi/adapter_guid"
+DEBOUNCE_SECONDS = 10
 
 
 class WifiQRScanner(QMainWindow):
@@ -39,6 +41,9 @@ class WifiQRScanner(QMainWindow):
 
         self.camera_worker = None
         self.is_scanning = False
+        self._dialog_open = False
+        self._ignored_payload = None
+        self._ignored_until = 0.0
         self.setAcceptDrops(True)
 
         self.central_widget = QWidget()
@@ -134,15 +139,18 @@ class WifiQRScanner(QMainWindow):
         try:
             interfaces = wlanapi.list_interfaces()
         except wlanapi.WlanApiError as exp:
+            self._dialog_open = False
             QMessageBox.critical(self, "Error", f"Could not query WiFi adapters: {exp}")
             return
 
         if not interfaces:
+            self._dialog_open = False
             QMessageBox.critical(self, "Error", "No WiFi adapter found or WiFi is off")
             return
 
         interface_guid = self.resolve_adapter(interfaces)
         if interface_guid is None:
+            self._dialog_open = False
             return
 
         progress = QProgressDialog("Connecting to WiFi...", "Cancel", 0, 0, self)
@@ -186,6 +194,7 @@ class WifiQRScanner(QMainWindow):
         else:
             QMessageBox.critical(self, "Error", message)
             self.status_label.setText("Connection failed")
+        self._dialog_open = False
 
     def show_wifi_details_dialog(self, creds):
         dialog = CustomMessageBox(self)
@@ -201,23 +210,33 @@ class WifiQRScanner(QMainWindow):
 
     @Slot(str, object)
     def on_qr_found(self, data, _corners):
-        if not data.startswith("WIFI:"):
+        if self._dialog_open or not data.startswith("WIFI:"):
+            return
+
+        if data == self._ignored_payload and time.monotonic() < self._ignored_until:
             return
 
         creds = parse_wifi_qr(data)
         if creds:
-            self.handle_wifi_qr_found(creds)
+            self.handle_wifi_qr_found(creds, data)
 
-    def handle_wifi_qr_found(self, creds):
+    def handle_wifi_qr_found(self, creds, payload=None):
         log.info(
             "WiFi QR found: ssid=%r security=%s hidden=%s",
             creds.ssid,
             creds.security,
             creds.hidden,
         )
+        self._dialog_open = True
         reply = self.show_wifi_details_dialog(creds)
+
         if reply == QMessageBox.Yes:
             self.connect_to_wifi(creds)
+        else:
+            self._dialog_open = False
+            if payload is not None:
+                self._ignored_payload = payload
+                self._ignored_until = time.monotonic() + DEBOUNCE_SECONDS
 
     def open_image_dialog(self):
         path, _ = QFileDialog.getOpenFileName(

@@ -1,0 +1,36 @@
+# UTF-8
+#
+# Version resource for Scan2Connect.exe, generated for PyInstaller's --version-file.
+# Keep in sync with the version in pyproject.toml.
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(0, 1, 0, 0),
+    prodvers=(0, 1, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0),
+  ),
+  kids=[
+    StringFileInfo(
+      [
+        StringTable(
+          u'040904B0',
+          [
+            StringStruct(u'CompanyName', u'Aadarsha Bhattarai'),
+            StringStruct(u'FileDescription', u'Scan2Connect'),
+            StringStruct(u'FileVersion', u'0.1.0.0'),
+            StringStruct(u'InternalName', u'Scan2Connect'),
+            StringStruct(u'LegalCopyright', u'Copyright (c) 2024 Aadarsha Bhattarai'),
+            StringStruct(u'OriginalFilename', u'Scan2Connect.exe'),
+            StringStruct(u'ProductName', u'Scan2Connect'),
+            StringStruct(u'ProductVersion', u'0.1.0.0'),
+          ]
+        )
+      ]
+    ),
+    VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+  ]
+)

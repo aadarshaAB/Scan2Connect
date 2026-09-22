@@ -1,7 +1,7 @@
 import logging
 import time
 
-from PySide6.QtCore import QSettings, Qt, QUrl, Slot
+from PySide6.QtCore import QSettings, Qt, QTimer, QUrl, Slot
 from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -22,6 +22,7 @@ from scan2connect.logging_setup import log_dir
 from scan2connect.qr.parser import parse_wifi_qr
 from scan2connect.resources import resource_path
 from scan2connect.ui.dialogs import CustomMessageBox
+from scan2connect.ui.widgets import CameraView
 from scan2connect.wifi import wlanapi
 from scan2connect.wifi.connector import WifiConnector
 
@@ -29,6 +30,7 @@ log = logging.getLogger(__name__)
 
 SETTINGS_ADAPTER_GUID_KEY = "wifi/adapter_guid"
 DEBOUNCE_SECONDS = 10
+HIGHLIGHT_DISPLAY_MS = 1500
 
 
 class WifiQRScanner(QMainWindow):
@@ -46,6 +48,10 @@ class WifiQRScanner(QMainWindow):
         self._ignored_until = 0.0
         self.setAcceptDrops(True)
 
+        self._highlight_timer = QTimer(self)
+        self._highlight_timer.setSingleShot(True)
+        self._highlight_timer.timeout.connect(self._clear_highlight)
+
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.layout = QVBoxLayout(self.central_widget)
@@ -58,8 +64,7 @@ class WifiQRScanner(QMainWindow):
         camera_frame.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         camera_layout = QVBoxLayout(camera_frame)
 
-        self.camera_label = QLabel()
-        self.camera_label.setAlignment(Qt.AlignCenter)
+        self.camera_label = CameraView()
         self.camera_label.setMinimumSize(640, 480)
         camera_layout.addWidget(self.camera_label)
 
@@ -124,6 +129,7 @@ class WifiQRScanner(QMainWindow):
             self.camera_worker.stop()
             self.camera_worker = None
 
+        self._highlight_timer.stop()
         self.scan_button.setText("Start Camera")
         self.scan_button.setStyleSheet("background-color: #4CAF50;")
         self.camera_label.clear()
@@ -203,13 +209,14 @@ class WifiQRScanner(QMainWindow):
 
     @Slot("QImage")
     def display_frame(self, qt_image):
-        scaled_pixmap = QPixmap.fromImage(qt_image).scaled(
-            self.camera_label.size(), Qt.KeepAspectRatio
-        )
-        self.camera_label.setPixmap(scaled_pixmap)
+        pixmap = QPixmap.fromImage(qt_image)
+        self.camera_label.set_frame(pixmap, (qt_image.width(), qt_image.height()))
 
     @Slot(str, object)
-    def on_qr_found(self, data, _corners):
+    def on_qr_found(self, data, corners):
+        self.camera_label.set_highlight(corners)
+        self._highlight_timer.start(HIGHLIGHT_DISPLAY_MS)
+
         if self._dialog_open or not data.startswith("WIFI:"):
             return
 
@@ -219,6 +226,9 @@ class WifiQRScanner(QMainWindow):
         creds = parse_wifi_qr(data)
         if creds:
             self.handle_wifi_qr_found(creds, data)
+
+    def _clear_highlight(self):
+        self.camera_label.clear_highlight()
 
     def handle_wifi_qr_found(self, creds, payload=None):
         log.info(

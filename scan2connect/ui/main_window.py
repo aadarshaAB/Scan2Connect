@@ -2,6 +2,7 @@ import cv2
 from PySide6.QtCore import QSettings, Qt, QTimer, Slot
 from PySide6.QtGui import QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QInputDialog,
@@ -14,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from scan2connect.camera.worker import detect_qr_codes, open_camera
+from scan2connect.camera.worker import detect_qr_codes, detect_qr_codes_in_image, open_camera
 from scan2connect.qr.parser import parse_wifi_qr
 from scan2connect.resources import resource_path
 from scan2connect.ui.dialogs import CustomMessageBox
@@ -35,6 +36,7 @@ class WifiQRScanner(QMainWindow):
         self.camera = None
         self.capture_timer = None
         self.is_scanning = False
+        self.setAcceptDrops(True)
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -56,6 +58,10 @@ class WifiQRScanner(QMainWindow):
         self.scan_button = QPushButton("Start Scanning")
         self.scan_button.clicked.connect(self.toggle_scanning)
         button_layout.addWidget(self.scan_button)
+
+        self.open_image_button = QPushButton("Open image…")
+        self.open_image_button.clicked.connect(self.open_image_dialog)
+        button_layout.addWidget(self.open_image_button)
 
         camera_layout.addLayout(button_layout)
         self.layout.addWidget(camera_frame)
@@ -180,9 +186,7 @@ class WifiQRScanner(QMainWindow):
                         cv2.polylines(
                             frame, [corners.astype(int)], True, (0, 255, 0), 2
                         )
-                        reply = self.show_wifi_details_dialog(creds)
-                        if reply == QMessageBox.Yes:
-                            self.connect_to_wifi(creds)
+                        self.handle_wifi_qr_found(creds)
 
             rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             h, w, ch = rgb_image.shape
@@ -193,6 +197,42 @@ class WifiQRScanner(QMainWindow):
                 self.camera_label.size(), Qt.KeepAspectRatio
             )
             self.camera_label.setPixmap(scaled_pixmap)
+
+    def handle_wifi_qr_found(self, creds):
+        reply = self.show_wifi_details_dialog(creds)
+        if reply == QMessageBox.Yes:
+            self.connect_to_wifi(creds)
+
+    def open_image_dialog(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open QR Code Image",
+            "",
+            "Images (*.png *.jpg *.jpeg *.bmp *.gif);;All Files (*)",
+        )
+        if path:
+            self.scan_image_file(path)
+
+    def scan_image_file(self, path):
+        for data, _corners in detect_qr_codes_in_image(path):
+            if data.startswith("WIFI:"):
+                creds = parse_wifi_qr(data)
+                if creds:
+                    self.handle_wifi_qr_found(creds)
+                    return
+
+        QMessageBox.warning(
+            self, "No WiFi QR Code Found", "No WiFi QR code was found in this image."
+        )
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if urls:
+            self.scan_image_file(urls[0].toLocalFile())
 
     def closeEvent(self, event):
         self.stop_camera()

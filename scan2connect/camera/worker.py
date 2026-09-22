@@ -22,6 +22,15 @@ def detect_qr_codes(frame):
     ]
 
 
+def detect_qr_codes_in_image(path):
+    """Detect QR codes in an image file. Returns a list of (payload, corners),
+    or [] if the file can't be read as an image."""
+    frame = cv2.imread(path)
+    if frame is None:
+        return []
+    return detect_qr_codes(frame)
+
+
 def _consent_value(hive, key_path):
     try:
         with winreg.OpenKey(hive, key_path) as key:

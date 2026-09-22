@@ -10,8 +10,11 @@ get/set/delete/connect/disconnect on profiles. Not wired into the app yet
 """
 
 import ctypes
+import logging
 from ctypes import POINTER, Structure, byref, c_ulong, c_void_p, c_wchar, c_wchar_p
 from ctypes.wintypes import BOOL, DWORD, HANDLE
+
+log = logging.getLogger(__name__)
 
 wlanapi = ctypes.windll.wlanapi
 
@@ -201,7 +204,12 @@ class WlanApiError(OSError):
 
 
 def _check(function_name, error_code):
-    if error_code != ERROR_SUCCESS:
+    if error_code == ERROR_SUCCESS:
+        log.info("%s returned 0 (ERROR_SUCCESS)", function_name)
+    else:
+        log.warning(
+            "%s returned %d: %s", function_name, error_code, ctypes.FormatError(error_code)
+        )
         raise WlanApiError(function_name, error_code)
 
 
@@ -223,7 +231,15 @@ class WlanHandle:
 
     def __exit__(self, exc_type, exc_value, traceback):
         if self._handle is not None:
-            wlanapi.WlanCloseHandle(self._handle, None)
+            error_code = wlanapi.WlanCloseHandle(self._handle, None)
+            if error_code == ERROR_SUCCESS:
+                log.info("WlanCloseHandle returned 0 (ERROR_SUCCESS)")
+            else:
+                log.warning(
+                    "WlanCloseHandle returned %d: %s",
+                    error_code,
+                    ctypes.FormatError(error_code),
+                )
             self._handle = None
 
     @property
@@ -274,7 +290,12 @@ def query_current_connection(wlan_handle, interface_guid):
         byref(data_ptr),
         byref(opcode_value_type),
     )
-    if error_code != ERROR_SUCCESS:
+    if error_code == ERROR_SUCCESS:
+        log.info("WlanQueryInterface returned 0 (ERROR_SUCCESS)")
+    else:
+        log.info(
+            "WlanQueryInterface returned %d: %s", error_code, ctypes.FormatError(error_code)
+        )
         return None
 
     try:

@@ -1,6 +1,8 @@
+import logging
+
 import cv2
-from PySide6.QtCore import QSettings, Qt, QTimer, Slot
-from PySide6.QtGui import QIcon, QImage, QPixmap
+from PySide6.QtCore import QSettings, Qt, QTimer, QUrl, Slot
+from PySide6.QtGui import QDesktopServices, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -16,11 +18,14 @@ from PySide6.QtWidgets import (
 )
 
 from scan2connect.camera.worker import detect_qr_codes, detect_qr_codes_in_image, open_camera
+from scan2connect.logging_setup import log_dir
 from scan2connect.qr.parser import parse_wifi_qr
 from scan2connect.resources import resource_path
 from scan2connect.ui.dialogs import CustomMessageBox
 from scan2connect.wifi import wlanapi
 from scan2connect.wifi.connector import WifiConnector
+
+log = logging.getLogger(__name__)
 
 SETTINGS_ADAPTER_GUID_KEY = "wifi/adapter_guid"
 
@@ -43,6 +48,7 @@ class WifiQRScanner(QMainWindow):
         self.layout = QVBoxLayout(self.central_widget)
 
         self.setup_ui()
+        self.setup_menu()
 
     def setup_ui(self):
         camera_frame = QFrame()
@@ -80,6 +86,14 @@ class WifiQRScanner(QMainWindow):
         watermark_label.setAlignment(Qt.AlignCenter)
         watermark_label.setStyleSheet("color: #999; padding: 5px;")
         self.layout.addWidget(watermark_label)
+
+    def setup_menu(self):
+        help_menu = self.menuBar().addMenu("&Help")
+        open_log_folder_action = help_menu.addAction("Open log folder")
+        open_log_folder_action.triggered.connect(self.open_log_folder)
+
+    def open_log_folder(self):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(log_dir())))
 
     def toggle_scanning(self):
         if not self.is_scanning:
@@ -199,6 +213,12 @@ class WifiQRScanner(QMainWindow):
             self.camera_label.setPixmap(scaled_pixmap)
 
     def handle_wifi_qr_found(self, creds):
+        log.info(
+            "WiFi QR found: ssid=%r security=%s hidden=%s",
+            creds.ssid,
+            creds.security,
+            creds.hidden,
+        )
         reply = self.show_wifi_details_dialog(creds)
         if reply == QMessageBox.Yes:
             self.connect_to_wifi(creds)

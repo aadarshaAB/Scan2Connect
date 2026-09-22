@@ -1,6 +1,9 @@
+import logging
 import winreg
 
 import cv2
+
+log = logging.getLogger(__name__)
 
 _detector = cv2.QRCodeDetectorAruco()
 
@@ -67,6 +70,7 @@ def open_camera(index=0):
     None and `error_message` is an actionable, user-facing string.
     """
     if is_camera_privacy_blocked():
+        log.warning("Camera open blocked: privacy settings deny webcam access")
         return None, (
             "Camera access is blocked by Windows privacy settings.\n\n"
             "Go to Settings › Privacy & security → Camera and allow "
@@ -75,13 +79,16 @@ def open_camera(index=0):
 
     capture = cv2.VideoCapture(index, cv2.CAP_DSHOW)
     if capture.isOpened():
+        log.info("Camera %d opened", index)
         return capture, None
 
     capture.release()
 
     if not is_camera_present(index):
+        log.warning("Camera open failed: no device at index %d", index)
         return None, "No camera was found. Connect a webcam and try again."
 
+    log.warning("Camera open failed: index %d present but busy/in use", index)
     return None, (
         "Could not access the camera. It may be in use by another app.\n\n"
         "Close any other app using the camera (e.g. Camera, Teams, Zoom) and try again."

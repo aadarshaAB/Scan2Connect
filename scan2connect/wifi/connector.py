@@ -1,9 +1,12 @@
+import logging
 import time
 
 from PySide6.QtCore import QThread, Signal
 
 from scan2connect.wifi import wlanapi
 from scan2connect.wifi.profile import build_profile_xml
+
+log = logging.getLogger(__name__)
 
 CONNECT_TIMEOUT_SECONDS = 15
 POLL_INTERVAL_SECONDS = 1
@@ -43,6 +46,7 @@ class WifiConnector(QThread):
                     interface_guid = interfaces[0]["guid"]
 
                 if wlanapi.current_connection(interface_guid) == self.ssid:
+                    log.info("Already connected to %s, skipping profile/connect", self.ssid)
                     self.connection_completed.emit(True, f"Already connected to {self.ssid}")
                     return
 
@@ -71,6 +75,7 @@ class WifiConnector(QThread):
                     wlanapi.connect(handle, interface_guid, self.ssid)
 
                     outcome = self._await_connection(handle, interface_guid)
+                    log.info("Connect attempt %d/%d outcome: %s", attempt, MAX_ATTEMPTS, outcome)
 
                     if outcome == "connected":
                         self.connection_completed.emit(True, f"Connected to {self.ssid}")
@@ -89,8 +94,10 @@ class WifiConnector(QThread):
                 self.connection_completed.emit(False, "Connection Timeout")
 
         except wlanapi.WlanApiError as exp:
+            log.error("Connection failed: %s", exp)
             self.connection_completed.emit(False, f"Connection failed: {exp}")
         except Exception as exp:
+            log.error("Connection failed: %s", exp)
             self.connection_completed.emit(False, f"Connection failed: {str(exp)}")
 
     def _await_connection(self, handle, interface_guid):

@@ -2,8 +2,12 @@ import logging
 import winreg
 
 import cv2
+from PySide6.QtCore import QMutex, QThread, Signal
+from PySide6.QtGui import QImage
 
 log = logging.getLogger(__name__)
+
+DETECT_EVERY_N_FRAMES = 3
 
 _detector = cv2.QRCodeDetectorAruco()
 
@@ -93,3 +97,69 @@ def open_camera(index=0):
         "Could not access the camera. It may be in use by another app.\n\n"
         "Close any other app using the camera (e.g. Camera, Teams, Zoom) and try again."
     )
+
+
+class CameraWorker(QThread):
+    """Owns capture + QR detection off the GUI thread.
+
+    Emits `frame_ready(QImage)` for every captured frame (GUI only paints)
+    and `qr_found(str, object)` (payload, corners) when a frame decodes a
+    QR code. Detection runs on a downscaled copy every `DETECT_EVERY_N_FRAMES`
+    frames rather than every frame, since decode is the expensive step.
+    """
+
+    frame_ready = Signal(QImage)
+    qr_found = Signal(str, object)
+    camera_error = Signal(str)
+
+    def __init__(self, index=0, parent=None):
+        super().__init__(parent)
+        self.index = index
+        self._mutex = QMutex()
+        self._running = False
+
+    def stop(self):
+        self._mutex.lock()
+        self._running = False
+        self._mutex.unlock()
+        self.wait()
+
+    def run(self):
+        capture, error_message = open_camera(self.index)
+        if error_message is not None:
+            self.camera_error.emit(error_message)
+            return
+
+        self._mutex.lock()
+        self._running = True
+        self._mutex.unlock()
+
+        frame_count = 0
+        try:
+            while True:
+                self._mutex.lock()
+                running = self._running
+                self._mutex.unlock()
+                if not running:
+                    break
+
+                ret, frame = capture.read()
+                if not ret:
+                    continue
+
+                frame_count += 1
+                if frame_count % DETECT_EVERY_N_FRAMES == 0:
+                    scale = 0.5
+                    small = cv2.resize(frame, None, fx=scale, fy=scale)
+                    for payload, corners in detect_qr_codes(small):
+                        self.qr_found.emit(payload, corners / scale)
+
+                rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb_image.shape
+                bytes_per_line = ch * w
+                qt_image = QImage(
+                    rgb_image.data, w, h, bytes_per_line, QImage.Format.Format_RGB888
+                ).copy()
+                self.frame_ready.emit(qt_image)
+        finally:
+            capture.release()

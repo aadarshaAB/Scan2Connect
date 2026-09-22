@@ -1,8 +1,7 @@
 import logging
 
-import cv2
-from PySide6.QtCore import QSettings, Qt, QTimer, QUrl, Slot
-from PySide6.QtGui import QDesktopServices, QIcon, QImage, QPixmap
+from PySide6.QtCore import QSettings, Qt, QUrl, Slot
+from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -17,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from scan2connect.camera.worker import detect_qr_codes, detect_qr_codes_in_image, open_camera
+from scan2connect.camera.worker import CameraWorker, detect_qr_codes_in_image
 from scan2connect.logging_setup import log_dir
 from scan2connect.qr.parser import parse_wifi_qr
 from scan2connect.resources import resource_path
@@ -38,8 +37,7 @@ class WifiQRScanner(QMainWindow):
         icon = QIcon(resource_path("assets/app_icon.ico"))
         self.setWindowIcon(icon)
 
-        self.camera = None
-        self.capture_timer = None
+        self.camera_worker = None
         self.is_scanning = False
         self.setAcceptDrops(True)
 
@@ -102,30 +100,35 @@ class WifiQRScanner(QMainWindow):
             self.stop_camera()
 
     def start_camera(self):
-        self.camera, error_message = open_camera(0)
-        if error_message is not None:
-            QMessageBox.critical(self, "Camera Error", error_message)
-            return
-
         self.is_scanning = True
         self.scan_button.setText("Stop Camera")
         self.scan_button.setStyleSheet("background-color: #f44336;")
 
-        self.capture_timer = QTimer()
-        self.capture_timer.timeout.connect(self.update_frame)
-        self.capture_timer.start(30)
+        self.camera_worker = CameraWorker(0)
+        self.camera_worker.frame_ready.connect(self.display_frame)
+        self.camera_worker.qr_found.connect(self.on_qr_found)
+        self.camera_worker.camera_error.connect(self.on_camera_error)
+        self.camera_worker.start()
 
     def stop_camera(self):
         self.is_scanning = False
-        if self.capture_timer:
-            self.capture_timer.stop()
-        if self.camera:
-            self.camera.release()
+        if self.camera_worker:
+            self.camera_worker.frame_ready.disconnect(self.display_frame)
+            self.camera_worker.qr_found.disconnect(self.on_qr_found)
+            self.camera_worker.camera_error.disconnect(self.on_camera_error)
+            self.camera_worker.stop()
+            self.camera_worker = None
 
         self.scan_button.setText("Start Camera")
         self.scan_button.setStyleSheet("background-color: #4CAF50;")
         self.camera_label.clear()
         self.status_label.setText("Scan WiFi QR code to connect")
+
+    def on_camera_error(self, error_message):
+        self.is_scanning = False
+        self.scan_button.setText("Start Camera")
+        self.scan_button.setStyleSheet("background-color: #4CAF50;")
+        QMessageBox.critical(self, "Camera Error", error_message)
 
     def connect_to_wifi(self, creds):
         try:
@@ -189,28 +192,21 @@ class WifiQRScanner(QMainWindow):
         dialog.setup_ui(creds.ssid, creds.password or "")
         return dialog.exec_()
 
-    @Slot()
-    def update_frame(self):
-        ret, frame = self.camera.read()
-        if ret:
-            for data, corners in detect_qr_codes(frame):
-                if data.startswith("WIFI:"):
-                    creds = parse_wifi_qr(data)
-                    if creds:
-                        cv2.polylines(
-                            frame, [corners.astype(int)], True, (0, 255, 0), 2
-                        )
-                        self.handle_wifi_qr_found(creds)
+    @Slot("QImage")
+    def display_frame(self, qt_image):
+        scaled_pixmap = QPixmap.fromImage(qt_image).scaled(
+            self.camera_label.size(), Qt.KeepAspectRatio
+        )
+        self.camera_label.setPixmap(scaled_pixmap)
 
-            rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb_image.shape
-            bytes_per_line = ch * w
-            qt_image = QImage(rgb_image.data, w, h, bytes_per_line,
-                              QImage.Format.Format_RGB888)
-            scaled_pixmap = QPixmap.fromImage(qt_image).scaled(
-                self.camera_label.size(), Qt.KeepAspectRatio
-            )
-            self.camera_label.setPixmap(scaled_pixmap)
+    @Slot(str, object)
+    def on_qr_found(self, data, _corners):
+        if not data.startswith("WIFI:"):
+            return
+
+        creds = parse_wifi_qr(data)
+        if creds:
+            self.handle_wifi_qr_found(creds)
 
     def handle_wifi_qr_found(self, creds):
         log.info(

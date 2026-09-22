@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from scan2connect.camera.worker import detect_qr_codes
+from scan2connect.camera.worker import detect_qr_codes, open_camera
 from scan2connect.qr.parser import parse_wifi_qr
 from scan2connect.resources import resource_path
 from scan2connect.ui.dialogs import CustomMessageBox
@@ -82,21 +82,18 @@ class WifiQRScanner(QMainWindow):
             self.stop_camera()
 
     def start_camera(self):
-        try:
-            self.camera = cv2.VideoCapture(0)
-            if not self.camera.isOpened():
-                raise Exception("Cannot access camera")
+        self.camera, error_message = open_camera(0)
+        if error_message is not None:
+            QMessageBox.critical(self, "Camera Error", error_message)
+            return
 
-            self.is_scanning = True
-            self.scan_button.setText("Stop Camera")
-            self.scan_button.setStyleSheet("background-color: #f44336;")
+        self.is_scanning = True
+        self.scan_button.setText("Stop Camera")
+        self.scan_button.setStyleSheet("background-color: #f44336;")
 
-            self.capture_timer = QTimer()
-            self.capture_timer.timeout.connect(self.update_frame)
-            self.capture_timer.start(30)
-
-        except Exception as exp:
-            QMessageBox.critical(self, "Error", f"Could not start camera: {str(exp)}")
+        self.capture_timer = QTimer()
+        self.capture_timer.timeout.connect(self.update_frame)
+        self.capture_timer.start(30)
 
     def stop_camera(self):
         self.is_scanning = False
